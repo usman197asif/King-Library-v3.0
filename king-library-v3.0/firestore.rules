@@ -1,0 +1,134 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (UID)
+    // Fields:
+    //   - name: string (required) - Full name
+    //   - email: string (required, email format) - University email
+    //   - isPremium: boolean (required) - Subscription status
+    //   - aiUsage: number (required) - AI request count
+    //   - earnings: number (required) - Total earnings
+    //   - createdAt: timestamp (required) - Account creation
+    //
+    // Collection: gigs
+    // Document ID: gigId
+    // Fields:
+    //   - title: string (required) - Gig title
+    //   - desc: string (required) - Detailed description
+    //   - payout: string (required) - Payment amount
+    //   - deadline: string (required) - Time limit
+    //   - category: string (required, enum) - Category
+    //   - tags: list (optional) - Keywords
+    //   - premium: boolean (optional) - Locked for premium
+    //   - status: string (required, enum) - open, claimed, completed
+    //   - claimedBy: string (optional) - UID of claimant
+    //   - claimedAt: timestamp (optional) - Claim timestamp
+    //   - createdAt: timestamp (required) - Creation timestamp
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // User Rules
+    match /users/{userId} {
+      function isValidUser(data) {
+        return data.keys().hasAll(['name', 'email', 'isPremium', 'aiUsage', 'earnings', 'createdAt']) &&
+               data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+               isValidEmail(data.email) &&
+               data.isPremium is bool &&
+               data.aiUsage is number && data.aiUsage >= 0 &&
+               data.earnings is number && data.earnings >= 0 &&
+               isValidDateString(data.createdAt);
+      }
+
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.isPremium == false;
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      request.resource.data.isPremium == resource.data.isPremium &&
+                      request.resource.data.earnings == resource.data.earnings;
+    }
+
+    // Gig Rules
+    match /gigs/{gigId} {
+      function isValidGig(data) {
+        return data.keys().hasAll(['title', 'desc', 'payout', 'deadline', 'category', 'status', 'createdAt', 'postedBy']) &&
+               data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
+               data.desc is string && data.desc.size() > 0 && data.desc.size() < 2000 &&
+               data.payout is string && data.payout.size() > 0 &&
+               data.deadline is string &&
+               data.category is string &&
+               data.status in ['open', 'claimed', 'submitted', 'completed'] &&
+               data.postedBy is string &&
+               isValidDateString(data.createdAt) &&
+               (!('commission' in data) || data.commission is number) &&
+               (!('commissionRate' in data) || data.commissionRate is number) &&
+               (!('premium' in data) || data.premium is bool) &&
+               (!('tags' in data) || data.tags is list);
+      }
+
+      allow read: if true;
+      allow create: if isAuthenticated() && 
+                      isValidGig(request.resource.data) && 
+                      request.resource.data.postedBy == request.auth.uid;
+      allow update: if isAuthenticated() && 
+                      isValidGig(request.resource.data) &&
+                      (
+                        // User claiming a gig
+                        (resource.data.status == 'open' && 
+                         request.resource.data.status == 'claimed' &&
+                         request.resource.data.claimedBy == request.auth.uid &&
+                         (!resource.data.premium || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isPremium == true)) ||
+                        // User submitting a gig
+                        (resource.data.status == 'claimed' &&
+                         request.resource.data.status == 'submitted' &&
+                         resource.data.claimedBy == request.auth.uid) ||
+                        // Poster completing a gig
+                        (resource.data.status == 'submitted' &&
+                         request.resource.data.status == 'completed' &&
+                         resource.data.postedBy == request.auth.uid)
+                      );
+    }
+
+    // Withdrawal Rules
+    match /withdrawals/{withdrawalId} {
+      function isValidWithdrawal(data) {
+        return data.keys().hasAll(['userId', 'amount', 'method', 'details', 'status', 'createdAt']) &&
+               data.userId == request.auth.uid &&
+               data.amount is number && data.amount > 0 &&
+               data.method is string &&
+               data.details is string &&
+               data.status == 'pending';
+      }
+
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidWithdrawal(request.resource.data);
+    }
+
+    // AI History Rules
+    match /ai_history/{historyId} {
+      allow read: if false;
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}

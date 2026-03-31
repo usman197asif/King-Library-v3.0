@@ -1,0 +1,103 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Represents a student user on the platform.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the student." },
+        "email": { "type": "string", "format": "email", "description": "University email address." },
+        "isPremium": { "type": "boolean", "description": "Whether the user has a premium subscription." },
+        "aiUsage": { "type": "integer", "description": "Number of AI requests made by the user." },
+        "earnings": { "type": "number", "description": "Total earnings from completed gigs." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp." }
+      },
+      "required": ["name", "email", "isPremium", "aiUsage", "earnings", "createdAt"]
+    },
+    "Gig": {
+      "title": "Gig",
+      "description": "Represents a task available in the marketplace.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Title of the gig." },
+        "desc": { "type": "string", "description": "Detailed description of the task." },
+        "payout": { "type": "string", "description": "Payment amount (e.g., '$20')." },
+        "deadline": { "type": "string", "description": "Time limit for the task." },
+        "category": { "type": "string", "enum": ["Writing", "STEM", "Creative", "Research", "Tutoring"], "description": "Category of the gig." },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "Keywords for the gig." },
+        "premium": { "type": "boolean", "description": "Whether the gig is locked for premium users." },
+        "status": { "type": "string", "enum": ["open", "claimed", "submitted", "completed"], "description": "Current status of the gig." },
+        "postedBy": { "type": "string", "description": "UID of the user who posted the gig." },
+        "commission": { "type": "number", "description": "Platform commission amount." },
+        "commissionRate": { "type": "number", "description": "Commission rate percentage." },
+        "claimedBy": { "type": "string", "description": "UID of the user who claimed the gig." },
+        "claimedAt": { "type": "string", "format": "date-time", "description": "Timestamp when the gig was claimed." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the gig was created." }
+      },
+      "required": ["title", "desc", "payout", "deadline", "category", "status", "createdAt"]
+    },
+    "AIHistory": {
+      "title": "AIHistory",
+      "description": "Tracks AI usage for analytics and limits.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the user." },
+        "action": { "type": "string", "enum": ["quiz", "summary", "flashcards", "explanation"], "description": "Type of AI action performed." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the action occurred." },
+        "tokens": { "type": "integer", "description": "Estimated tokens used." }
+      },
+      "required": ["userId", "action", "timestamp"]
+    },
+    "Withdrawal": {
+      "title": "Withdrawal",
+      "description": "Represents a student's request to withdraw their earnings.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the student requesting withdrawal." },
+        "amount": { "type": "number", "description": "Amount to withdraw." },
+        "method": { "type": "string", "description": "Payment method (e.g., 'PayPal', 'Bank Transfer')." },
+        "details": { "type": "string", "description": "Payment details (e.g., email or account number)." },
+        "status": { "type": "string", "enum": ["pending", "processed", "rejected"], "description": "Current status of the request." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Timestamp when the request was made." }
+      },
+      "required": ["userId", "amount", "method", "details", "status", "createdAt"]
+    },
+    "PremiumRequest": {
+      "title": "PremiumRequest",
+      "description": "A request for premium status via manual payment or earnings.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "UID of the student." },
+        "userEmail": { "type": "string", "description": "Email for verification." },
+        "amount": { "type": "number", "description": "Amount paid." },
+        "method": { "type": "string", "enum": ["Earnings", "PayPal", "Bank Transfer", "Other"], "description": "Payment method used." },
+        "transactionId": { "type": "string", "description": "Reference ID for external payments." },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"], "description": "Status of the request." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the request was made." }
+      },
+      "required": ["userId", "amount", "method", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents."
+    },
+    "/gigs/{gigId}": {
+      "schema": "Gig",
+      "description": "Gig marketplace documents."
+    },
+    "/ai_history/{historyId}": {
+      "schema": "AIHistory",
+      "description": "AI usage tracking logs."
+    },
+    "/withdrawals/{withdrawalId}": {
+      "schema": "Withdrawal",
+      "description": "Withdrawal requests from students."
+    },
+    "/premium_requests/{requestId}": {
+      "schema": "PremiumRequest",
+      "description": "Manual payment verification requests for Premium status."
+    }
+  }
+}
